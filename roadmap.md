@@ -1,0 +1,7 @@
+- [ ] Fix category hover submenu visibility and confirm touch-friendly behavior.
+- [ ] Improve AHAiWEB search discovery metadata and sitemap; note indexing limits.
+- [ ] Debug and repair scraper archive save/update behavior, including source links.
+- [ ] Confirm full-site Blogger XML theme export and download flow.
+- [ ] Refine admin panel and dynamic role presentation without changing permissions unintentionally.
+- [ ] Resolve the two active profile/storage exposure findings while preserving intended public content access.
+- [ ] Validate changes, inspect latest preview build diagnostics, and review this roadmap before completion.

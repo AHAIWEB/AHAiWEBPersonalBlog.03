@@ -20,6 +20,7 @@ const zodiacSigns = [
 const Header = () => {
   const [isDark, setIsDark] = useState(false);
   const [selectedSign, setSelectedSign] = useState<string | null>(null);
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   
   const { user } = useAuth();
   const location = useLocation();
@@ -32,7 +33,7 @@ const Header = () => {
   const { data: allCategories } = useQuery({
     queryKey: ["nav-categories-all"],
     queryFn: async () => {
-      const { data } = await supabase.from("categories").select("*").eq("show_in_nav", true).order("sort_order");
+      const { data } = await supabase.from("categories").select("*").order("sort_order");
       return (data || []) as any[];
     },
   });
@@ -46,8 +47,8 @@ const Header = () => {
   });
 
   // Build parent-child hierarchy
-  const parentCategories = allCategories?.filter((c: any) => !c.parent_id) || [];
-  const getChildren = (parentId: string) => allCategories?.filter((c: any) => c.parent_id === parentId) || [];
+  const parentCategories = allCategories?.filter((c: any) => !c.parent_id && c.show_in_nav) || [];
+  const getChildren = (parentId: string) => allCategories?.filter((c: any) => c.parent_id === parentId && c.show_in_nav) || [];
 
   const { data: dailyContent } = useQuery({
     queryKey: ["daily-content", today],
@@ -142,7 +143,8 @@ const Header = () => {
             const children = getChildren(cat.id);
             if (children.length > 0) {
               return (
-                <div key={cat.id} className="group relative shrink-0">
+                <Popover key={cat.id} open={openCategoryId === cat.id} onOpenChange={(open) => setOpenCategoryId(open ? cat.id : null)}>
+                  <div className="relative shrink-0" onMouseEnter={() => setOpenCategoryId(cat.id)} onMouseLeave={() => setOpenCategoryId(null)}>
                   {cat.external_url ? (
                     <Button
                       variant={activeCategory === cat.slug ? "default" : "ghost"}
@@ -155,50 +157,30 @@ const Header = () => {
                       </a>
                     </Button>
                   ) : (
-                    <Button
-                      variant={activeCategory === cat.slug ? "default" : "ghost"}
-                      size="sm"
-                      className="h-7 text-xs rounded-full gap-1"
-                      onClick={() => setSearchParams({ category: cat.slug })}
-                    >
-                      {cat.icon} {cat.name} <ChevronDown className="h-3 w-3" />
-                    </Button>
+                    <PopoverTrigger asChild>
+                      <Button variant={activeCategory === cat.slug ? "default" : "ghost"} size="sm" className="h-7 text-xs rounded-full gap-1" aria-expanded={openCategoryId === cat.id}>
+                        {cat.icon} {cat.name} <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </PopoverTrigger>
                   )}
-                  <div className="pointer-events-none invisible absolute left-0 top-full z-50 w-[min(560px,90vw)] translate-y-2 rounded-md border border-border bg-popover p-3 text-popover-foreground opacity-0 shadow-md transition-all group-hover:pointer-events-auto group-hover:visible group-hover:translate-y-1 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-y-1 group-focus-within:opacity-100">
-                    <button
-                      className="w-full text-left mb-2 px-2 py-1 rounded hover:bg-muted text-xs font-bold"
-                      onClick={() => setSearchParams({ category: cat.slug })}
-                    >
-                      সব {cat.name} →
-                    </button>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-[70vh] overflow-y-auto">
-                      {children.map((child: any) => (
-                        child.external_url ? (
-                          <a
-                            key={child.id}
-                            href={child.external_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-left px-2 py-1.5 text-xs hover:bg-muted rounded transition-colors flex items-center gap-2"
-                          >
-                            {child.icon && <span>{child.icon}</span>}
-                            <span className="truncate">{child.name}</span>
-                            <ExternalLink className="h-3 w-3 ml-auto" />
+                    <PopoverContent align="start" sideOffset={6} className="z-[100] w-[min(560px,90vw)] p-3" onMouseEnter={() => setOpenCategoryId(cat.id)} onMouseLeave={() => setOpenCategoryId(null)}>
+                      <button className="mb-2 w-full rounded px-2 py-1 text-left text-xs font-bold hover:bg-muted" onClick={() => { setSearchParams({ category: cat.slug }); setOpenCategoryId(null); }}>
+                        সব {cat.name} →
+                      </button>
+                      <div className="grid max-h-[70vh] grid-cols-2 gap-1 overflow-y-auto sm:grid-cols-3">
+                        {children.map((child: any) => child.external_url ? (
+                          <a key={child.id} href={child.external_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted">
+                            {child.icon && <span>{child.icon}</span>}<span className="truncate">{child.name}</span><ExternalLink className="ml-auto h-3 w-3" />
                           </a>
                         ) : (
-                          <button
-                            key={child.id}
-                            className="text-left px-2 py-1.5 text-xs hover:bg-muted rounded transition-colors flex items-center gap-2"
-                            onClick={() => setSearchParams({ category: child.slug })}
-                          >
-                            {child.icon && <span>{child.icon}</span>}
-                            <span className="truncate">{child.name}</span>
+                          <button key={child.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted" onClick={() => { setSearchParams({ category: child.slug }); setOpenCategoryId(null); }}>
+                            {child.icon && <span>{child.icon}</span>}<span className="truncate">{child.name}</span>
                           </button>
-                        )
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
                   </div>
-                </div>
+                </Popover>
               );
             }
             if (cat.external_url) {

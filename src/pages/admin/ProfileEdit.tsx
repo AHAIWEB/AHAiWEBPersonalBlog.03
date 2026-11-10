@@ -36,6 +36,7 @@ const ProfileEdit = () => {
     youtube_url: "",
     tiktok_url: "",
     github_url: "",
+    is_public: true,
   });
 
   useEffect(() => {
@@ -60,6 +61,7 @@ const ProfileEdit = () => {
             youtube_url: data.youtube_url || "",
             tiktok_url: data.tiktok_url || "",
             github_url: data.github_url || "",
+            is_public: data.is_public ?? true,
           });
         }
         setLoading(false);
@@ -185,6 +187,10 @@ const ProfileEdit = () => {
               <Label>ওয়েবসাইট</Label>
               <Input value={profile.website} onChange={(e) => setProfile((p) => ({ ...p, website: e.target.value }))} />
             </div>
+          </div>
+          <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
+            <div><Label htmlFor="profile-public">প্রোফাইল সবার জন্য দৃশ্যমান</Label><p className="mt-1 text-xs text-muted-foreground">বন্ধ করলে শুধু আপনি ও সাইট অ্যাডমিন আপনার প্রোফাইল দেখতে পাবেন।</p></div>
+            <Switch id="profile-public" checked={profile.is_public} onCheckedChange={(checked) => setProfile((current) => ({ ...current, is_public: checked }))} />
           </div>
         </CardContent>
       </Card>

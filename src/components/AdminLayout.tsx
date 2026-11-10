@@ -28,19 +28,27 @@ const AdminLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [roleLoading, setRoleLoading] = useState(true);
   const [canAccessAdmin, setCanAccessAdmin] = useState(false);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) { setRoleLoading(false); return; }
+    let active = true;
+    setRoleLoading(true);
+    setCanAccessAdmin(false);
+    setCurrentRole(null);
+    if (!user) { setRoleLoading(false); return () => { active = false; }; }
     supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
       .in("role", ["admin", "moderator", "editor"] as any)
-      .limit(1)
-      .then(({ data }) => {
-        setCanAccessAdmin(!!data?.length);
+      .then(({ data, error }) => {
+        if (!active) return;
+        const role = error ? null : data?.[0]?.role || null;
+        setCurrentRole(role);
+        setCanAccessAdmin(!!role);
         setRoleLoading(false);
       });
+    return () => { active = false; };
   }, [user]);
 
   if (loading || roleLoading) {
@@ -105,7 +113,8 @@ const AdminLayout = () => {
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-semibold">অ্যাডমিন প্যানেল</h1>
+          <h1 className="text-lg font-semibold">AHAiWEB স্টুডিও</h1>
+          <span className="rounded border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{currentRole === "admin" ? "অ্যাডমিন" : currentRole === "moderator" ? "মডারেটর" : "এডিটর"}</span>
           <span className="ml-auto text-xs text-muted-foreground">{user.email}</span>
         </header>
         <main className="flex-1 p-4 md:p-6 overflow-auto">

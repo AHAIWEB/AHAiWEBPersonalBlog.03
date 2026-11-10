@@ -71,7 +71,7 @@ const LeftSidebar = () => {
   });
 
   const timelineEvents: { year: string; event: string }[] =
-    onThisDay?.events?.length ? onThisDay.events : (histEvents || []);
+    histEvents?.length ? histEvents : (onThisDay?.events || []);
   const cardMakerHref =
     `/card-maker?title=${encodeURIComponent("ইতিহাসে আজ")}&events=${encodeURIComponent(JSON.stringify(timelineEvents.slice(0, 8)))}`;
 

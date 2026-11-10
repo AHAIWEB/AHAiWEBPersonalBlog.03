@@ -5,12 +5,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, UserCircle2, CalendarRange, Quote, Link2, Download, BookOpen, ImagePlus } from "lucide-react";
 import { generateBloggerTheme, generateBloggerAtomExport, downloadFile } from "@/lib/bloggerExport";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
 const QUOTE_SOURCES = [
   { url: "https://www.bani.com.bd/", name: "bani.com.bd" },
@@ -38,12 +40,23 @@ export default function ScraperHub() {
   const [smartUrls, setSmartUrls] = useState("");
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartLog, setSmartLog] = useState<any[]>([]);
+  const [scrapeCategoryId, setScrapeCategoryId] = useState("none");
+
+  const { data: scrapeCategories = [] } = useQuery({
+    queryKey: ["scraper-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("categories").select("id,name,parent_id,icon").order("sort_order");
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   // Blogger export state
   const [bloggerTitle, setBloggerTitle] = useState("AHAiWEB");
   const [bloggerDesc, setBloggerDesc] = useState("Personal Blog · News portal + Creative");
   const [bloggerPrimary, setBloggerPrimary] = useState("#dc2626");
   const [exportingPosts, setExportingPosts] = useState(false);
+  const [exportedPostCount, setExportedPostCount] = useState(0);
 
   // Dictionary scraper state
   const [dictUrls, setDictUrls] = useState("https://www.bangladict.net/");
@@ -74,7 +87,7 @@ export default function ScraperHub() {
     setSmartLog([]);
     try {
       const { data, error } = await supabase.functions.invoke("scrape-url", {
-        body: { urls },
+        body: { urls, categoryId: scrapeCategoryId === "none" ? null : scrapeCategoryId },
       });
       if (error) throw error;
       setSmartLog(data.results || []);
@@ -96,17 +109,26 @@ export default function ScraperHub() {
 
   const exportPosts = async () => {
     setExportingPosts(true);
+    setExportedPostCount(0);
     try {
-      const { data, error } = await supabase
-        .from("posts")
-        .select("id,title,content,excerpt,published_at,created_at,slug,featured_image")
-        .eq("status", "published")
-        .order("published_at", { ascending: false })
-        .limit(1000);
-      if (error) throw error;
-      const xml = generateBloggerAtomExport(data || [], bloggerTitle);
+      const allPosts: Array<{ id: string; title: string; content: string | null; excerpt: string | null; published_at: string | null; created_at: string; slug: string; featured_image: string | null }> = [];
+      const pageSize = 500;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase.from("posts")
+          .select("id,title,content,excerpt,published_at,created_at,slug,featured_image")
+          .eq("status", "published")
+          .order("published_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const page = data || [];
+        allPosts.push(...page);
+        setExportedPostCount(allPosts.length);
+        if (page.length < pageSize) break;
+      }
+      const xml = generateBloggerAtomExport(allPosts, bloggerTitle);
       downloadFile(`${bloggerTitle.toLowerCase().replace(/\s+/g, "-")}-posts-export.xml`, xml);
-      toast({ title: `${data?.length || 0} পোস্ট এক্সপোর্ট হয়েছে` });
+      toast({ title: `${allPosts.length} পোস্ট এক্সপোর্ট হয়েছে` });
     } catch (e: any) {
       toast({ title: "ত্রুটি", description: e.message, variant: "destructive" });
     } finally {
@@ -197,6 +219,20 @@ export default function ScraperHub() {
                 placeholder="http://bani.com.bd/author/184&#10;http://bani.com.bd/author/68&#10;https://example.com/article"
                 className="font-mono text-xs"
               />
+              <div className="max-w-md space-y-1.5">
+                <p className="text-xs font-medium">আর্কাইভের বিভাগ</p>
+                <Select value={scrapeCategoryId} onValueChange={setScrapeCategoryId}>
+                  <SelectTrigger><SelectValue placeholder="বিভাগ নির্বাচন করুন" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">বিভাগ ছাড়া</SelectItem>
+                    {scrapeCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.parent_id ? "↳ " : ""}{category.icon || "📁"} {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button onClick={runSmart} disabled={smartLoading}>
                 {smartLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                 ফেচ ও সেভ
@@ -396,7 +432,7 @@ export default function ScraperHub() {
                 </Button>
                 <Button onClick={exportPosts} disabled={exportingPosts} variant="outline">
                   {exportingPosts && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                  পোস্ট Atom XML এক্সপোর্ট
+                  পোস্ট Atom XML এক্সপোর্ট {exportingPosts && `(${exportedPostCount} সংগ্রহ)`}
                 </Button>
               </div>
               <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">

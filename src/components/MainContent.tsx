@@ -68,6 +68,7 @@ const SlideDots = ({ emblaApi, count }: { emblaApi: any; count: number }) => {
 const MainContent = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeCategorySlug = searchParams.get("category");
+  const searchQuery = (searchParams.get("q") || "").trim();
 
   const [rssItems, setRssItems] = useState<RssItem[]>([]);
   const [rssLoading, setRssLoading] = useState(true);
@@ -601,6 +602,38 @@ const MainContent = () => {
         );
       }) || []
     : [];
+
+  const searchResults = searchQuery
+    ? (posts || []).filter((post) => `${post.title} ${post.excerpt || ""} ${post.content || ""}`.toLocaleLowerCase().includes(searchQuery.toLocaleLowerCase()))
+    : [];
+
+  if (searchQuery) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-bold">“{searchQuery}” — অনুসন্ধানের ফল</h2>
+          <Badge variant="outline" className="text-xs">{searchResults.length} পোস্ট</Badge>
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setSearchParams({})}>মুছুন</Button>
+        </div>
+        {postsLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        ) : searchResults.length ? (
+          <Card className="news-card">
+            <CardContent className="p-0 divide-y divide-border">
+              {searchResults.map((post) => (
+                <Link key={post.id} to={`/post/${post.slug}`} className="flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50">
+                  {post.featured_image && <img src={post.featured_image} alt="" className="h-16 w-24 shrink-0 rounded object-cover" />}
+                  <span className="min-w-0"><strong className="block text-sm leading-snug">{post.title}</strong>{post.excerpt && <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">{post.excerpt}</span>}</span>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="news-card"><CardContent className="py-10 text-center text-sm text-muted-foreground">এই শব্দে কোনো পোস্ট পাওয়া যায়নি।</CardContent></Card>
+        )}
+      </div>
+    );
+  }
 
   // If a category filter is active, show filtered view
   if (activeCategorySlug && activeCategory) {

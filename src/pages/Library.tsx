@@ -8,9 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { BookOpen, Upload, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -25,20 +23,7 @@ const Library = () => {
     author: "",
     description: "",
     category: "",
-    is_public: false,
     file: null as File | null,
-  });
-
-  const { data: publicBooks = [] } = useQuery({
-    queryKey: ["public-ebooks"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("ebooks")
-        .select("*")
-        .eq("is_public", true)
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
   });
 
   const { data: myBooks = [] } = useQuery({
@@ -48,7 +33,7 @@ const Library = () => {
       const { data } = await supabase
         .from("ebooks")
         .select("*")
-        .eq("user_id", user!.id)
+        .eq("user_id", user?.id || "")
         .order("created_at", { ascending: false });
       return data || [];
     },
@@ -83,7 +68,7 @@ const Library = () => {
         author: form.author || null,
         description: form.description || null,
         category: form.category || null,
-        is_public: form.is_public,
+        is_public: false,
         pdf_url: path,
         file_path: path,
         file_size: form.file.size,
@@ -91,8 +76,7 @@ const Library = () => {
       if (dbErr) throw dbErr;
       toast.success("আপলোড সফল");
       setOpen(false);
-      setForm({ title: "", author: "", description: "", category: "", is_public: false, file: null });
-      qc.invalidateQueries({ queryKey: ["public-ebooks"] });
+      setForm({ title: "", author: "", description: "", category: "", file: null });
       qc.invalidateQueries({ queryKey: ["my-ebooks"] });
     } catch (e: any) {
       toast.error(e.message);
@@ -145,7 +129,7 @@ const Library = () => {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-3xl font-display font-black">লাইব্রেরি</h1>
-            <p className="text-sm text-muted-foreground">PDF বই · ই-বুক রিডার</p>
+            <p className="text-sm text-muted-foreground">আপনার ব্যক্তিগত PDF বই ও ই-বুক</p>
           </div>
           {user && (
             <Dialog open={open} onOpenChange={setOpen}>
@@ -175,10 +159,7 @@ const Library = () => {
                     <Label>PDF বা EPUB ফাইল *</Label>
                     <Input type="file" accept=".pdf,.epub,application/pdf,application/epub+zip" onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })} />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={form.is_public} onCheckedChange={(v) => setForm({ ...form, is_public: v })} />
-                    <Label>পাবলিক করুন (সবাই দেখতে পাবে)</Label>
-                  </div>
+                  <p className="text-xs text-muted-foreground">আপলোড করা বই শুধু আপনার অ্যাকাউন্ট থেকেই খোলা যাবে।</p>
                 </div>
                 <DialogFooter>
                   <Button onClick={handleUpload} disabled={uploading}>
@@ -190,28 +171,13 @@ const Library = () => {
           )}
         </div>
 
-        <Tabs defaultValue="public">
-          <TabsList>
-            <TabsTrigger value="public">পাবলিক ({publicBooks.length})</TabsTrigger>
-            {user && <TabsTrigger value="mine">আমার শেলফ ({myBooks.length})</TabsTrigger>}
-          </TabsList>
-          <TabsContent value="public" className="mt-4">
-            {publicBooks.length === 0 ? (
-              <p className="text-center text-muted-foreground py-12">এখনো কোনো বই নেই</p>
-            ) : (
-              <BookGrid books={publicBooks} />
-            )}
-          </TabsContent>
-          {user && (
-            <TabsContent value="mine" className="mt-4">
-              {myBooks.length === 0 ? (
-                <p className="text-center text-muted-foreground py-12">শেলফ খালি — আপলোড দিন</p>
-              ) : (
-                <BookGrid books={myBooks} mine />
-              )}
-            </TabsContent>
-          )}
-        </Tabs>
+        {!user ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">নিজের বই দেখতে লগইন করুন।</p>
+        ) : myBooks.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">শেলফ খালি — একটি বই আপলোড করুন।</p>
+        ) : (
+          <BookGrid books={myBooks} mine />
+        )}
       </div>
     </div>
   );

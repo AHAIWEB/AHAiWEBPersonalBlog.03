@@ -1,8 +1,8 @@
 import { Search, Bell, Moon, Sun, Menu, Settings, LogIn, Home, CalendarDays, Star, Quote, ChevronDown, BookOpen, Library as LibraryIcon, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,14 +21,20 @@ const Header = () => {
   const [isDark, setIsDark] = useState(false);
   const [selectedSign, setSelectedSign] = useState<string | null>(null);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const categoryCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const isAdmin = location.pathname.startsWith("/admin");
   const activeCategory = searchParams.get("category");
 
-  const today = new Date().toISOString().split("T")[0];
+  const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const datePart = (type: string) => dateParts.find((part) => part.type === type)?.value || "";
+  const today = `${datePart("year")}-${datePart("month")}-${datePart("day")}`;
+  const todayMonthDay = `${datePart("month")}-${datePart("day")}`;
 
   const { data: allCategories } = useQuery({
     queryKey: ["nav-categories-all"],
@@ -61,6 +67,30 @@ const Header = () => {
   const onThisDay = dailyContent?.find((d: any) => d.content_type === "on_this_day")?.data as any;
   const horoscope = dailyContent?.find((d: any) => d.content_type === "horoscope")?.data as any;
   const quote = dailyContent?.find((d: any) => d.content_type === "quote")?.data as any;
+
+  const { data: archivedToday = [] } = useQuery({
+    queryKey: ["hist-events", todayMonthDay],
+    queryFn: async () => {
+      const { data } = await supabase.from("historical_events").select("year,event").eq("event_date", todayMonthDay).eq("category", "event").order("year", { ascending: true }).limit(20);
+      return data || [];
+    },
+  });
+
+  const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = searchTerm.trim();
+    navigate(query ? `/?q=${encodeURIComponent(query)}` : "/");
+  };
+
+  const openCategoryMenu = (categoryId: string) => {
+    if (categoryCloseTimer.current) clearTimeout(categoryCloseTimer.current);
+    setOpenCategoryId(categoryId);
+  };
+
+  const scheduleCategoryClose = () => {
+    if (categoryCloseTimer.current) clearTimeout(categoryCloseTimer.current);
+    categoryCloseTimer.current = setTimeout(() => setOpenCategoryId(null), 180);
+  };
 
   const toggleDark = () => {
     setIsDark(!isDark);
@@ -98,12 +128,11 @@ const Header = () => {
 
         </div>
 
-        <div className="hidden md:flex flex-1 max-w-md">
-          <div className="relative w-full">
+        <form onSubmit={submitSearch} className="hidden md:flex flex-1 max-w-md relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="অনুসন্ধান করুন..." className="pl-9 h-9 bg-muted border-0" />
-          </div>
-        </div>
+            <Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="AHAiWEB-এ খুঁজুন..." aria-label="সাইটে খুঁজুন" className="pl-9 h-9 bg-muted border-0" />
+            <Button type="submit" variant="ghost" size="icon" aria-label="খুঁজুন" className="absolute right-0 top-0 h-9 w-9"><Search className="h-4 w-4" /></Button>
+        </form>
 
         <div className="flex items-center gap-1">
           {isAdmin ? (
@@ -128,6 +157,12 @@ const Header = () => {
         </div>
       </div>
 
+      <form onSubmit={submitSearch} className="md:hidden px-4 pb-2 relative">
+        <Search className="absolute left-7 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="AHAiWEB-এ খুঁজুন..." aria-label="সাইটে খুঁজুন" className="pl-9 h-9 bg-muted border-0" />
+        <Button type="submit" variant="ghost" size="icon" aria-label="খুঁজুন" className="absolute right-5 top-0 h-9 w-9"><Search className="h-4 w-4" /></Button>
+      </form>
+
       {/* Category Nav */}
       {!isAdmin && (
         <nav className="max-w-7xl mx-auto px-4 pb-2 flex gap-1 overflow-x-auto text-sm scrollbar-hide">
@@ -144,7 +179,7 @@ const Header = () => {
             if (children.length > 0) {
               return (
                 <Popover key={cat.id} open={openCategoryId === cat.id} onOpenChange={(open) => setOpenCategoryId(open ? cat.id : null)}>
-                  <div className="relative shrink-0" onMouseEnter={() => setOpenCategoryId(cat.id)} onMouseLeave={() => setOpenCategoryId(null)}>
+                  <div className="relative shrink-0" onMouseEnter={() => openCategoryMenu(cat.id)} onMouseLeave={scheduleCategoryClose}>
                   {cat.external_url ? (
                     <Button
                       variant={activeCategory === cat.slug ? "default" : "ghost"}
@@ -163,7 +198,7 @@ const Header = () => {
                       </Button>
                     </PopoverTrigger>
                   )}
-                    <PopoverContent align="start" sideOffset={6} className="z-[100] w-[min(560px,90vw)] p-3" onMouseEnter={() => setOpenCategoryId(cat.id)} onMouseLeave={() => setOpenCategoryId(null)}>
+                    <PopoverContent align="start" sideOffset={6} className="z-[100] w-[min(560px,90vw)] p-3" onMouseEnter={() => openCategoryMenu(cat.id)} onMouseLeave={scheduleCategoryClose}>
                       <button className="mb-2 w-full rounded px-2 py-1 text-left text-xs font-bold hover:bg-muted" onClick={() => { setSearchParams({ category: cat.slug }); setOpenCategoryId(null); }}>
                         সব {cat.name} →
                       </button>
@@ -227,8 +262,8 @@ const Header = () => {
                 </TabsList>
 
                 <TabsContent value="today" className="p-3 mt-0 space-y-2.5 max-h-64 overflow-y-auto">
-                  {onThisDay?.events?.length ? (
-                    onThisDay.events.map((e: any, i: number) => (
+                  {archivedToday.length || onThisDay?.events?.length ? (
+                    (archivedToday.length ? archivedToday : onThisDay.events).map((e: any, i: number) => (
                       <div key={i} className="border-l-2 border-accent pl-3">
                         <p className="text-xs font-bold text-muted-foreground">{e.year}</p>
                         <p className="text-sm">{e.event}</p>

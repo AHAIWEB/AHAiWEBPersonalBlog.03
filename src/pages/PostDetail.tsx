@@ -97,22 +97,6 @@ const PostDetail = () => {
           )}
         </div>
 
-        {post.source_url && (
-          <Card className="border-dashed">
-            <CardContent className="py-3 flex items-center justify-between">
-              <div className="text-sm">
-                <span className="text-muted-foreground">সোর্স: </span>
-                <span className="font-medium">{post.source_name || "লিংক"}</span>
-              </div>
-              <a href={post.source_url} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                  <ExternalLink className="h-3 w-3" /> মূল লিংক
-                </Button>
-              </a>
-            </CardContent>
-          </Card>
-        )}
-
         {post.content && (
           <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed"
             dangerouslySetInnerHTML={{ __html: post.content }} />
@@ -120,6 +104,17 @@ const PostDetail = () => {
 
         {!post.content && post.excerpt && (
           <p className="text-muted-foreground leading-relaxed">{post.excerpt}</p>
+        )}
+
+        {post.source_url && (
+          <Card className="border-dashed">
+            <CardContent className="flex items-center justify-between py-3">
+              <div className="text-sm"><span className="text-muted-foreground">মূল লেখার উৎস: </span><span className="font-medium">{post.source_name || "ওয়েব লিংক"}</span></div>
+              <a href={post.source_url} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm" className="h-7 gap-1 text-xs"><ExternalLink className="h-3 w-3" /> উৎস খুলুন</Button>
+              </a>
+            </CardContent>
+          </Card>
         )}
 
         {tags.length > 0 && (

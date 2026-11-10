@@ -9,12 +9,23 @@ export function generateBloggerTheme(opts: {
   fontHeading?: string;
   fontBody?: string;
 }): string {
-  const title = opts.title || "AHAiWEB";
-  const description = opts.description || "Personal Blog";
-  const primary = opts.primaryColor || "#dc2626";
-  const bg = opts.bgColor || "#ffffff";
-  const fHead = opts.fontHeading || "Playfair Display, serif";
-  const fBody = opts.fontBody || "Noto Sans Bengali, sans-serif";
+  const xml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  const comment = (value: string) => value.replace(/--/g, "—").replace(/[*/]/g, " ").replace(/[<>]/g, " ").trim();
+  const cssFont = (value: string | undefined, fallback: string) => {
+    const font = value || fallback;
+    return /^[\p{L}\p{N}\s,'"_-]+$/u.test(font) ? font : fallback;
+  };
+  const color = (value: string | undefined, fallback: string) => /^#[0-9a-f]{3,8}$/i.test(value || "") ? value : fallback;
+  const titleText = opts.title.trim() || "AHAiWEB";
+  const descriptionText = opts.description?.trim() || "Personal Blog";
+  const title = xml(titleText);
+  const description = xml(descriptionText);
+  const primary = color(opts.primaryColor, "#dc2626");
+  const bg = color(opts.bgColor, "#ffffff");
+  const fHead = xml(cssFont(opts.fontHeading, "Playfair Display, serif"));
+  const fBody = xml(cssFont(opts.fontBody, "Noto Sans Bengali, sans-serif"));
+  const titleComment = comment(titleText);
+  const descriptionComment = comment(descriptionText);
 
   return `<?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE html>
@@ -27,8 +38,8 @@ export function generateBloggerTheme(opts: {
 <link href='https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&amp;family=Playfair+Display:wght@600;700;800;900&amp;display=swap' rel='stylesheet'/>
 <b:skin><![CDATA[
 /*!
-Theme Name: ${title}
-Description: ${description} — AHAiWEB News Portal + Creative
+ Theme Name: ${titleComment}
+Description: ${descriptionComment} — AHAiWEB News Portal + Creative
 Author: AHAiWEB
 */
 :root{

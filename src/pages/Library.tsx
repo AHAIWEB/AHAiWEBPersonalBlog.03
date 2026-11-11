@@ -116,6 +116,7 @@ const Library = () => {
           <div className="p-2">
             <p className="text-sm font-semibold truncate">{b.title}</p>
             {b.author && <p className="text-xs text-muted-foreground truncate">{b.author}</p>}
+            {mine && b.is_public && <p className="mt-1 text-[10px] text-muted-foreground">শুধু আপনার অ্যাকাউন্টে প্রবেশযোগ্য</p>}
           </div>
         </Card>
       ))}

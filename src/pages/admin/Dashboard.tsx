@@ -35,8 +35,8 @@ const AdminDashboard = () => {
   const stats = [
     { label: "মোট পোস্ট", value: postCount ?? 0, icon: FileText, color: "text-primary" },
     { label: "মিডিয়া ফাইল", value: mediaCount ?? 0, icon: Image, color: "text-accent-foreground" },
-    { label: "মোট ভিউ", value: recentPosts?.reduce((s, p) => s + (p.views || 0), 0) ?? 0, icon: Eye, color: "text-emerald-600" },
-    { label: "মোট লাইক", value: recentPosts?.reduce((s, p) => s + (p.likes || 0), 0) ?? 0, icon: Heart, color: "text-rose-500" },
+    { label: "সাম্প্রতিক ৫ পোস্টের ভিউ", value: recentPosts?.reduce((s, p) => s + (p.views || 0), 0) ?? 0, icon: Eye, color: "text-emerald-600" },
+    { label: "সাম্প্রতিক ৫ পোস্টের লাইক", value: recentPosts?.reduce((s, p) => s + (p.likes || 0), 0) ?? 0, icon: Heart, color: "text-rose-500" },
   ];
 
   return (
@@ -49,8 +49,8 @@ const AdminDashboard = () => {
             <CardContent className="p-4 flex items-center gap-3">
               <stat.icon className={`h-8 w-8 ${stat.color}`} />
               <div>
-                <p className="text-2xl font-bold">{stat.value}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              <p className="text-2xl font-bold">{stat.value}</p>
+              <p className="text-xs text-muted-foreground">{stat.label}</p>
               </div>
             </CardContent>
           </Card>

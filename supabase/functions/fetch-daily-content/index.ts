@@ -16,8 +16,14 @@ Deno.serve(async (req) => {
     const bdtOffset = 6 * 60 * 60 * 1000;
     const todayDate = new Date(nowUtc.getTime() + bdtOffset);
     const today = todayDate.toISOString().split("T")[0];
-    const month = todayDate.toLocaleDateString("bn-BD", { month: "long", timeZone: "Asia/Dhaka" });
-    const day = todayDate.toLocaleDateString("bn-BD", { day: "numeric", timeZone: "Asia/Dhaka" });
+    const month = nowUtc.toLocaleDateString("bn-BD", { month: "long", timeZone: "Asia/Dhaka" });
+    const day = nowUtc.toLocaleDateString("bn-BD", { day: "numeric", timeZone: "Asia/Dhaka" });
+
+    const monthDay = `${today.slice(5, 7)}-${today.slice(8, 10)}`;
+    const historyRes = await fetch(`${supabaseUrl}/rest/v1/historical_events?event_date=eq.${monthDay}&category=eq.event&select=year,event&order=year.asc&limit=50`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    });
+    const archivedEvents = historyRes.ok ? await historyRes.json() : [];
 
     // Check existing content
     const existingRes = await fetch(`${supabaseUrl}/rest/v1/daily_content?date=eq.${today}&select=content_type`, {
@@ -27,7 +33,7 @@ Deno.serve(async (req) => {
     const existingTypes = existing.map((e: any) => e.content_type);
 
     const needed: string[] = [];
-    if (!existingTypes.includes("on_this_day")) needed.push("on_this_day");
+    if (!existingTypes.includes("on_this_day") || archivedEvents.length > 0) needed.push("on_this_day");
     if (!existingTypes.includes("horoscope")) needed.push("horoscope");
     if (!existingTypes.includes("quote")) needed.push("quote");
 
@@ -40,6 +46,24 @@ Deno.serve(async (req) => {
     const results: string[] = [];
 
     for (const type of needed) {
+      if (type === "on_this_day" && archivedEvents.length > 0) {
+        const archiveUpsert = await fetch(`${supabaseUrl}/rest/v1/daily_content?on_conflict=content_type,date`, {
+          method: "POST",
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates,return=minimal",
+          },
+          body: JSON.stringify({ content_type: type, date: today, data: { events: archivedEvents } }),
+        });
+        if (!archiveUpsert.ok) {
+          console.error("Historical archive update failed:", await archiveUpsert.text());
+          continue;
+        }
+        results.push(type);
+        continue;
+      }
       let prompt = "";
       if (type === "on_this_day") {
         prompt = `আজ ${day} ${month}। আজকের এই দিনে ঘটে যাওয়া ৫টি উল্লেখযোগ্য ঐতিহাসিক ঘটনা বাংলায় লেখো। প্রতিটি ঘটনার জন্য year (সাল সংখ্যায়) এবং event (ঘটনার সংক্ষিপ্ত বর্ণনা) দাও।`;
@@ -83,7 +107,7 @@ Deno.serve(async (req) => {
         const parsed = JSON.parse(toolCall.function.arguments);
 
         // Upsert via REST API
-        const upsertRes = await fetch(`${supabaseUrl}/rest/v1/daily_content`, {
+        const upsertRes = await fetch(`${supabaseUrl}/rest/v1/daily_content?on_conflict=content_type,date`, {
           method: "POST",
           headers: {
             apikey: supabaseKey,

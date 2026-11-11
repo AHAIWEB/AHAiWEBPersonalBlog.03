@@ -45,20 +45,61 @@ function slugify(s: string) {
   return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 80) || `post-${Date.now()}`;
 }
 
+function isPrivateIpv4(address: string) {
+  const parts = address.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const [a, b] = parts;
+  return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
+async function assertPublicHost(hostname: string) {
+  const host = hostname.toLowerCase();
+  if (host.includes(":")) throw new Error("সরাসরি IP ঠিকানা গ্রহণযোগ্য নয়");
+  const ipv4 = host.split(".").map(Number);
+  if (ipv4.length === 4 && ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+    if (isPrivateIpv4(host)) throw new Error("ব্যক্তিগত বা অভ্যন্তরীণ নেটওয়ার্কের ঠিকানা গ্রহণযোগ্য নয়");
+    return;
+  }
+  const answers = await Promise.all(["A", "AAAA"].map(async (type) => {
+    try { return await Deno.resolveDns(host, type as "A" | "AAAA"); } catch { return []; }
+  }));
+  const addresses = answers.flat() as string[];
+  if (addresses.length === 0) throw new Error("ওয়েব ঠিকানাটি যাচাই করা যায়নি");
+  for (const address of addresses) {
+    if (address.includes(":")) {
+      if (!/^[23]/i.test(address)) throw new Error("ব্যক্তিগত বা অভ্যন্তরীণ নেটওয়ার্কের ঠিকানা গ্রহণযোগ্য নয়");
+    } else if (isPrivateIpv4(address)) {
+      throw new Error("ব্যক্তিগত বা অভ্যন্তরীণ নেটওয়ার্কের ঠিকানা গ্রহণযোগ্য নয়");
+    }
+  }
+}
+
 async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(20000),
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-      "Accept": "text/html,*/*",
-    },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const contentLength = Number(res.headers.get("content-length") || 0);
-  if (contentLength > 8_000_000) throw new Error("ওয়েবপেজটি ৮ MB-এর বেশি");
-  const html = await res.text();
-  if (html.length > 8_000_000) throw new Error("ওয়েবপেজটি ৮ MB-এর বেশি");
-  return html;
+  let currentUrl = validatePublicUrl(url);
+  for (let redirects = 0; redirects <= 5; redirects += 1) {
+    await assertPublicHost(currentUrl.hostname);
+    const res = await fetch(currentUrl, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(20000),
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,*/*",
+      },
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const redirectTo = res.headers.get("location");
+      if (!redirectTo || redirects === 5) throw new Error("ওয়েবসাইটটি অনেকবার ঠিকানা বদলেছে");
+      currentUrl = validatePublicUrl(new URL(redirectTo, currentUrl).href);
+      continue;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const contentLength = Number(res.headers.get("content-length") || 0);
+    if (contentLength > 8_000_000) throw new Error("ওয়েবপেজটি ৮ MB-এর বেশি");
+    const html = await res.text();
+    if (html.length > 8_000_000) throw new Error("ওয়েবপেজটি ৮ MB-এর বেশি");
+    return html;
+  }
+  throw new Error("ওয়েবপেজটি আনা যায়নি");
 }
 
 async function requireUser(req: Request, supabaseUrl: string, anonKey: string, serviceKey: string): Promise<AuthUser> {
@@ -196,7 +237,7 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !anonKey || !serviceKey) throw new Error("সার্ভার সেটিংস অনুপস্থিত");
     const body = await req.json().catch(() => ({}));
-    if (!Array.isArray(body.urls) || body.urls.length < 1 || body.urls.length > 30 || body.urls.some((value: unknown) => typeof value !== "string" || value.length > 2048)) {
+    if (!Array.isArray(body.urls) || body.urls.length < 1 || body.urls.length > 10 || body.urls.some((value: unknown) => typeof value !== "string" || value.length > 2048)) {
       return new Response(JSON.stringify({ error: "urls[] required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

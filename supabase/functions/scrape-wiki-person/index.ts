@@ -22,6 +22,20 @@ function decodeWikiTitle(url: string): string {
   }
 }
 
+async function requireScraperUser(req: Request, supabaseUrl: string, anonKey: string, serviceKey: string) {
+  const token = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) throw new Error("authenticated session required");
+  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { apikey: anonKey, Authorization: `Bearer ${token}` } });
+  if (!userRes.ok) throw new Error("invalid authenticated session");
+  const user = await userRes.json();
+  if (!user?.id) throw new Error("invalid authenticated session");
+  const rolesRes = await fetch(`${supabaseUrl}/rest/v1/user_roles?user_id=eq.${encodeURIComponent(user.id)}&role=in.(admin,moderator,editor)&select=role&limit=1`, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
+  if (!rolesRes.ok) throw new Error("account permission could not be checked");
+  const roles = await rolesRes.json();
+  if (!roles?.length) throw new Error("scraper access is not allowed for this account");
+  return { id: user.id, role: roles[0].role as string };
+}
+
 async function fetchWikiPage(title: string) {
   // Use mobile-sections REST API which provides clean lead + remaining HTML + image
   const enc = encodeURIComponent(title.replace(/ /g, "_"));
@@ -52,25 +66,18 @@ async function fetchWikiPage(title: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !anonKey || !serviceKey) throw new Error("server configuration is incomplete");
+    const scraperUser = await requireScraperUser(req, supabaseUrl, anonKey, serviceKey);
     const body = await req.json().catch(() => ({}));
     let urls: string[] = [];
     if (Array.isArray(body.urls)) urls = body.urls;
     else if (typeof body.urls === "string") urls = body.urls.split(/[👉\n,]+/);
     urls = urls.map((s: string) => s.trim()).filter((s) => s.startsWith("http"));
 
-    // Get a system user (first profile) to attribute posts
-    const profRes = await fetch(`${supabaseUrl}/rest/v1/profiles?select=user_id&limit=1`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-    });
-    const profs = profRes.ok ? await profRes.json() : [];
-    const sysUserId = profs?.[0]?.user_id;
-    if (!sysUserId) {
-      return new Response(JSON.stringify({ error: "No profile/user found to attribute posts" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const ownerUserId = scraperUser.id;
 
     // Find/create "পিপল" category
     let categoryId: string | null = null;
@@ -99,13 +106,18 @@ Deno.serve(async (req) => {
         const slug = slugify(wiki.title) || slugify(title);
 
         // Check for existing post by source_url
-        const existRes = await fetch(`${supabaseUrl}/rest/v1/posts?source_url=eq.${encodeURIComponent(url)}&select=id`, {
+        const existRes = await fetch(`${supabaseUrl}/rest/v1/posts?source_url=eq.${encodeURIComponent(url)}&select=id,user_id&limit=1`, {
           headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
         });
-        const exist = existRes.ok ? await existRes.json() : [];
+        if (!existRes.ok) throw new Error(`Archive lookup failed: ${await existRes.text()}`);
+        const exist = await existRes.json();
+        if (exist[0] && exist[0].user_id !== ownerUserId && scraperUser.role !== "admin") {
+          results.push({ url, ok: false, error: "You do not have permission to update another user's post" });
+          continue;
+        }
 
         const payload = {
-          user_id: sysUserId,
+          user_id: exist[0]?.user_id || ownerUserId,
           category_id: categoryId,
           title: wiki.title,
           slug,
@@ -122,11 +134,12 @@ Deno.serve(async (req) => {
         let postId: string | null = null;
         if (exist[0]) {
           postId = exist[0].id;
-          await fetch(`${supabaseUrl}/rest/v1/posts?id=eq.${postId}`, {
+          const updateRes = await fetch(`${supabaseUrl}/rest/v1/posts?id=eq.${postId}`, {
             method: "PATCH",
-            headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ ...payload, updated_at: new Date().toISOString() }),
+            headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ title: payload.title, slug: payload.slug, category_id: payload.category_id, content: payload.content, excerpt: payload.excerpt, featured_image: payload.featured_image, source_name: payload.source_name, updated_at: new Date().toISOString() }),
           });
+          if (!updateRes.ok) throw new Error(`Archive update failed: ${await updateRes.text()}`);
         } else {
           const insRes = await fetch(`${supabaseUrl}/rest/v1/posts`, {
             method: "POST",
@@ -148,6 +161,14 @@ Deno.serve(async (req) => {
             results.push({ url, ok: false, error: errTxt });
             continue;
           }
+        }
+        if (postId && categoryId) {
+          const linkRes = await fetch(`${supabaseUrl}/rest/v1/post_categories?on_conflict=post_id,category_id`, {
+            method: "POST",
+            headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "resolution=ignore-duplicates,return=minimal" },
+            body: JSON.stringify({ post_id: postId, category_id: categoryId }),
+          });
+          if (!linkRes.ok) throw new Error(`Could not add archive category: ${await linkRes.text()}`);
         }
         results.push({ url, ok: true, id: postId, title: wiki.title, updated: !!exist[0] });
       } catch (e) {

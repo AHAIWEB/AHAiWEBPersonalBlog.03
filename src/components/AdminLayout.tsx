@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 const navItems = [
   { label: "ড্যাশবোর্ড", icon: LayoutDashboard, path: "/admin" },
@@ -78,14 +79,14 @@ const AdminLayout = () => {
           </Button>
         </div>
 
-        <nav className="p-3 space-y-1">
+        <nav className="min-h-0 flex-1 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
               onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                location.pathname === item.path
+              location.pathname === item.path || (item.path !== "/admin" && location.pathname.startsWith(`${item.path}/`))
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
@@ -96,7 +97,7 @@ const AdminLayout = () => {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border space-y-1">
+        <div className="shrink-0 p-3 border-t border-border space-y-1">
           <Link to="/" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-muted">
             <Home className="h-4 w-4" /> হোমপেজে যান
           </Link>
@@ -114,7 +115,7 @@ const AdminLayout = () => {
             <Menu className="h-5 w-5" />
           </Button>
           <h1 className="text-lg font-semibold">AHAiWEB স্টুডিও</h1>
-          <span className="rounded border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{currentRole === "admin" ? "অ্যাডমিন" : currentRole === "moderator" ? "মডারেটর" : "এডিটর"}</span>
+          <Badge variant="secondary" className="text-xs">{currentRole === "admin" ? "অ্যাডমিন" : currentRole === "moderator" ? "মডারেটর" : "এডিটর"}</Badge>
           <span className="ml-auto text-xs text-muted-foreground">{user.email}</span>
         </header>
         <main className="flex-1 p-4 md:p-6 overflow-auto">

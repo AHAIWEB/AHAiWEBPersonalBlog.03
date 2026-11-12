@@ -107,7 +107,7 @@ const AdminDashboard = () => {
         {teamMembers.length ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {teamMembers.map((member) => (
-              <div key={member.user_id} className="flex items-center gap-3 border border-border bg-card px-3 py-3">
+                  <div key={member.user_id} className="flex items-center gap-3 border border-border bg-card px-3 py-3">
                 {member.avatar_url ? <img src={member.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{member.display_name?.charAt(0) || "A"}</div>}
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1 truncate text-sm font-medium">{member.display_name || "নাম নেই"}{member.is_verified && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />}</p>

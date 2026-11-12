@@ -180,28 +180,17 @@ const Header = () => {
               return (
                 <Popover key={cat.id} open={openCategoryId === cat.id} onOpenChange={(open) => setOpenCategoryId(open ? cat.id : null)}>
                   <div className="relative shrink-0" onMouseEnter={() => openCategoryMenu(cat.id)} onMouseLeave={scheduleCategoryClose}>
-                  {cat.external_url ? (
-                    <Button
-                      variant={activeCategory === cat.slug ? "default" : "ghost"}
-                      size="sm"
-                      className="h-7 text-xs rounded-full gap-1"
-                      asChild
-                    >
-                      <a href={cat.external_url} target="_blank" rel="noreferrer">
-                        {cat.icon} {cat.name} <ExternalLink className="h-3 w-3" />
-                      </a>
+                  <PopoverTrigger asChild>
+                    <Button variant={activeCategory === cat.slug ? "default" : "ghost"} size="sm" className="h-7 text-xs rounded-full gap-1" aria-expanded={openCategoryId === cat.id}>
+                      {cat.icon} {cat.name} {cat.external_url && <ExternalLink className="h-3 w-3" />} <ChevronDown className="h-3 w-3" />
                     </Button>
-                  ) : (
-                    <PopoverTrigger asChild>
-                      <Button variant={activeCategory === cat.slug ? "default" : "ghost"} size="sm" className="h-7 text-xs rounded-full gap-1" aria-expanded={openCategoryId === cat.id}>
-                        {cat.icon} {cat.name} <ChevronDown className="h-3 w-3" />
-                      </Button>
-                    </PopoverTrigger>
-                  )}
+                  </PopoverTrigger>
                     <PopoverContent align="start" sideOffset={6} className="z-[100] w-[min(560px,90vw)] p-3" onMouseEnter={() => openCategoryMenu(cat.id)} onMouseLeave={scheduleCategoryClose}>
-                      <button className="mb-2 w-full rounded px-2 py-1 text-left text-xs font-bold hover:bg-muted" onClick={() => { setSearchParams({ category: cat.slug }); setOpenCategoryId(null); }}>
-                        সব {cat.name} →
-                      </button>
+                      {cat.external_url ? (
+                        <a className="mb-2 block w-full rounded px-2 py-1 text-left text-xs font-bold hover:bg-muted" href={cat.external_url} target="_blank" rel="noreferrer">সব {cat.name} → <ExternalLink className="inline h-3 w-3" /></a>
+                      ) : (
+                        <button className="mb-2 w-full rounded px-2 py-1 text-left text-xs font-bold hover:bg-muted" onClick={() => { setSearchParams({ category: cat.slug }); setOpenCategoryId(null); }}>সব {cat.name} →</button>
+                      )}
                       <div className="grid max-h-[70vh] grid-cols-2 gap-1 overflow-y-auto sm:grid-cols-3">
                         {children.map((child: any) => child.external_url ? (
                           <a key={child.id} href={child.external_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted">

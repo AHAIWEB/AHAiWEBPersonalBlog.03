@@ -135,6 +135,7 @@ function sanitizeArticleHtml(html: string, baseUrl: string): string {
     .replace(/<(script|style|iframe|object|embed|form|svg|math|template|noscript|base|meta|link|button|input|textarea|select|video|audio)\b[^>]*\/?\s*>/gi, "")
     .replace(/<a\b[^>]*>/gi, "<span>")
     .replace(/<\/a\s*>/gi, "</span>")
+    .replace(/\s(?:src|srcset|poster)\s*=\s*(?!["'])[^\s>]+/gi, "")
     .replace(/\s(?:on[a-z]+|style|srcdoc|formaction|xlink:href|href|srcset|poster)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/\s(src)\s*=\s*(["'])(.*?)\2/gi, (_match, _attribute, _quote, value: string) => {
       try {
@@ -143,7 +144,8 @@ function sanitizeArticleHtml(html: string, baseUrl: string): string {
       } catch {
         return "";
       }
-    });
+    })
+    .replace(/<\/?(?!p\b|div\b|span\b|article\b|section\b|h[1-6]\b|ul\b|ol\b|li\b|blockquote\b|table\b|thead\b|tbody\b|tr\b|th\b|td\b|br\b|hr\b|strong\b|b\b|em\b|i\b|small\b|figure\b|figcaption\b|img\b|dl\b|dt\b|dd\b)[a-z][^>]*>/gi, "");
 }
 
 function pick(html: string, re: RegExp): string | null {
@@ -228,7 +230,7 @@ function extractArticle(html: string, url: string) {
 
   return {
     title: cleanTitle,
-    content: cleanedContent || strip(html).slice(0, 5000),
+    content: cleanedContent || escapeHtml(strip(html).slice(0, 5000)),
     excerpt: description ? strip(description).slice(0, 300) : strip(cleanedContent || html).slice(0, 300),
     featured_image: ogImage,
   };

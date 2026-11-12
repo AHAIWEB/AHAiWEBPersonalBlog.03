@@ -7,9 +7,21 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!supabaseUrl || !supabaseKey || !anonKey || !lovableKey) throw new Error("server configuration is incomplete");
+
+    const token = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!token) return new Response(JSON.stringify({ error: "sign in with an authorized account" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (token !== supabaseKey) {
+      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { apikey: anonKey, Authorization: `Bearer ${token}` } });
+      if (!userRes.ok) return new Response(JSON.stringify({ error: "invalid authenticated session" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const user = await userRes.json();
+      const rolesRes = await fetch(`${supabaseUrl}/rest/v1/user_roles?user_id=eq.${encodeURIComponent(user.id)}&role=eq.admin&select=role&limit=1`, { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } });
+      if (!rolesRes.ok || !(await rolesRes.json()).length) return new Response(JSON.stringify({ error: "admin access required" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Use BDT (UTC+6) for date consistency
     const nowUtc = new Date();

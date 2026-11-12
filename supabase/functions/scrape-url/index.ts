@@ -119,7 +119,7 @@ async function requireUser(req: Request, supabaseUrl: string, anonKey: string, s
   if (!rolesRes.ok) throw new Error("অ্যাকাউন্টের অনুমতি যাচাই করা যায়নি");
   const roles = await rolesRes.json();
   const role = roles?.[0]?.role;
-  if (!role) throw new Error("স্ক্র্যাপার ব্যবহারের অনুমতি নেই");
+  if (!role) throw new Error("scraper access not allowed for this account");
   return { id: user.id, role };
 }
 

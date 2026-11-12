@@ -105,6 +105,13 @@ export default function ScraperHub() {
   };
 
   const downloadTheme = () => {
+    if (typeof DOMParser !== "undefined") {
+      const parsed = new DOMParser().parseFromString(generateBloggerTheme({ title: bloggerTitle, description: bloggerDesc, primaryColor: bloggerPrimary }), "application/xml");
+      if (parsed.querySelector("parsererror")) {
+        toast({ title: "XML তৈরি করা যায়নি", description: "শিরোনাম, বর্ণনা ও রঙ পরীক্ষা করে আবার চেষ্টা করুন।", variant: "destructive" });
+        return;
+      }
+    }
     const xml = generateBloggerTheme({
       title: bloggerTitle, description: bloggerDesc, primaryColor: bloggerPrimary,
     });

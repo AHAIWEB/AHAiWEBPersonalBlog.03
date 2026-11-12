@@ -29,6 +29,11 @@ function validatePublicUrl(rawUrl: string): URL {
     }
   }
   if (host.includes(":")) throw new Error("সরাসরি IP ঠিকানা গ্রহণযোগ্য নয়");
+  for (const key of [...parsed.searchParams.keys()]) {
+    if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid)$/i.test(key)) parsed.searchParams.delete(key);
+  }
+  parsed.searchParams.sort();
+  if (parsed.pathname.length > 1) parsed.pathname = parsed.pathname.replace(/\/+$/, "");
   parsed.hash = "";
   return parsed;
 }

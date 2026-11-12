@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Image, Eye, Heart } from "lucide-react";
+import { FileText, Image, Eye, Heart, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -29,6 +29,18 @@ const AdminDashboard = () => {
         .order("created_at", { ascending: false })
         .limit(5);
       return data || [];
+    },
+  });
+
+  const { data: teamMembers = [] } = useQuery({
+    queryKey: ["admin-team-members"],
+    queryFn: async () => {
+      const { data: roleRows, error: rolesError } = await supabase.from("user_roles").select("user_id,role").in("role", ["admin", "moderator", "editor"] as any);
+      if (rolesError || !roleRows?.length) return [];
+      const userIds = [...new Set(roleRows.map((row) => row.user_id))];
+      const { data: profileRows, error: profilesError } = await supabase.from("profiles").select("user_id,display_name,avatar_url,is_verified").in("user_id", userIds);
+      if (profilesError) return [];
+      return userIds.map((userId) => ({ ...profileRows?.find((profile) => profile.user_id === userId), user_id: userId, roles: roleRows.filter((role) => role.user_id === userId).map((role) => role.role) }));
     },
   });
 
@@ -85,6 +97,27 @@ const AdminDashboard = () => {
           )}
         </CardContent>
       </Card>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-primary" />
+          <h3 className="text-base font-semibold">টিম অ্যাকসেস</h3>
+          <span className="text-xs text-muted-foreground">{teamMembers.length} জন</span>
+        </div>
+        {teamMembers.length ? (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {teamMembers.map((member) => (
+                  <div key={member.user_id} className="flex items-center gap-3 border border-border bg-card px-3 py-3">
+                {member.avatar_url ? <img src={member.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{member.display_name?.charAt(0) || "A"}</div>}
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1 truncate text-sm font-medium">{member.display_name || "নাম নেই"}{member.is_verified && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" />}</p>
+                  <p className="truncate text-xs text-muted-foreground">{member.roles.map((role) => role === "admin" ? "অ্যাডমিন" : role === "moderator" ? "মডারেটর" : "এডিটর").join(" · ")}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-sm text-muted-foreground">এখনও কোনো প্রশাসনিক সদস্য নেই।</p>}
+      </section>
     </div>
   );
 };

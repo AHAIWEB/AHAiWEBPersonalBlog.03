@@ -12,7 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { Loader2, UserCircle2, CalendarRange, Quote, Link2, Download, BookOpen, ImagePlus } from "lucide-react";
 import { generateBloggerTheme, generateBloggerAtomExport, downloadFile } from "@/lib/bloggerExport";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const QUOTE_SOURCES = [
   { url: "https://www.bani.com.bd/", name: "bani.com.bd" },
@@ -25,6 +25,7 @@ const QUOTE_SOURCES = [
 
 export default function ScraperHub() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [personUrls, setPersonUrls] = useState("");
   const [personLoading, setPersonLoading] = useState(false);
   const [personLog, setPersonLog] = useState<any[]>([]);
@@ -91,6 +92,10 @@ export default function ScraperHub() {
       });
       if (error) throw error;
       setSmartLog(data.results || []);
+      if (data.results?.some((result: any) => result.ok)) {
+        await queryClient.invalidateQueries({ queryKey: ["homepage-posts"] });
+        await queryClient.invalidateQueries({ queryKey: ["post-detail"] });
+      }
       toast({ title: `সম্পন্ন: ${data.ok}/${data.total}` });
     } catch (e: any) {
       toast({ title: "ত্রুটি", description: e.message, variant: "destructive" });
@@ -100,6 +105,13 @@ export default function ScraperHub() {
   };
 
   const downloadTheme = () => {
+    if (typeof DOMParser !== "undefined") {
+      const parsed = new DOMParser().parseFromString(generateBloggerTheme({ title: bloggerTitle, description: bloggerDesc, primaryColor: bloggerPrimary }), "application/xml");
+      if (parsed.querySelector("parsererror")) {
+        toast({ title: "XML তৈরি করা যায়নি", description: "শিরোনাম, বর্ণনা ও রঙ পরীক্ষা করে আবার চেষ্টা করুন।", variant: "destructive" });
+        return;
+      }
+    }
     const xml = generateBloggerTheme({
       title: bloggerTitle, description: bloggerDesc, primaryColor: bloggerPrimary,
     });
@@ -144,6 +156,10 @@ export default function ScraperHub() {
       const { data, error } = await supabase.functions.invoke("scrape-wiki-person", { body: { urls } });
       if (error) throw error;
       setPersonLog(data.results || []);
+      if (data.results?.some((result: any) => result.ok)) {
+        await queryClient.invalidateQueries({ queryKey: ["homepage-posts"] });
+        await queryClient.invalidateQueries({ queryKey: ["post-detail"] });
+      }
       const ok = data.results?.filter((r: any) => r.ok).length || 0;
       toast({ title: `সম্পন্ন: ${ok}/${urls.length}` });
     } catch (e: any) {
@@ -160,6 +176,9 @@ export default function ScraperHub() {
       const { data, error } = await supabase.functions.invoke("scrape-wiki-on-this-day", { body: { onlyToday } });
       if (error) throw error;
       setEventsLog(data);
+      await queryClient.invalidateQueries({ queryKey: ["hist-events"] });
+      await queryClient.invalidateQueries({ queryKey: ["daily-content"] });
+      await queryClient.invalidateQueries({ queryKey: ["daily-content-sidebar"] });
       toast({ title: `+${data.inserted} ঘটনা যুক্ত হয়েছে`, description: `স্কিপ: ${data.skipped}` });
     } catch (e: any) {
       toast({ title: "ত্রুটি", description: e.message, variant: "destructive" });

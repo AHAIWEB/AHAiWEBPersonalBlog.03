@@ -55,7 +55,7 @@ Author: AHAiWEB
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{font-family:${fBody};background:#f8fafc;color:var(--fg);line-height:1.75;font-size:15px}
+body{font-family:${fBody};background:var(--bg);color:var(--fg);line-height:1.75;font-size:15px}
 h1,h2,h3,h4,h5{font-family:${fHead};margin:0 0 .5em;line-height:1.25;color:var(--fg)}
 a{color:var(--primary);text-decoration:none;transition:color .2s}
 a:hover{color:var(--primary-dark)}

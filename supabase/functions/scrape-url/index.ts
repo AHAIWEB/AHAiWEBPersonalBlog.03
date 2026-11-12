@@ -29,6 +29,11 @@ function validatePublicUrl(rawUrl: string): URL {
     }
   }
   if (host.includes(":")) throw new Error("সরাসরি IP ঠিকানা গ্রহণযোগ্য নয়");
+  for (const key of [...parsed.searchParams.keys()]) {
+    if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid)$/i.test(key)) parsed.searchParams.delete(key);
+  }
+  parsed.searchParams.sort();
+  if (parsed.pathname.length > 1) parsed.pathname = parsed.pathname.replace(/\/+$/, "");
   parsed.hash = "";
   return parsed;
 }
@@ -119,7 +124,7 @@ async function requireUser(req: Request, supabaseUrl: string, anonKey: string, s
   if (!rolesRes.ok) throw new Error("অ্যাকাউন্টের অনুমতি যাচাই করা যায়নি");
   const roles = await rolesRes.json();
   const role = roles?.[0]?.role;
-  if (!role) throw new Error("স্ক্র্যাপার ব্যবহারের অনুমতি নেই");
+  if (!role) throw new Error("scraper access not allowed for this account");
   return { id: user.id, role };
 }
 
@@ -130,6 +135,7 @@ function sanitizeArticleHtml(html: string, baseUrl: string): string {
     .replace(/<(script|style|iframe|object|embed|form|svg|math|template|noscript|base|meta|link|button|input|textarea|select|video|audio)\b[^>]*\/?\s*>/gi, "")
     .replace(/<a\b[^>]*>/gi, "<span>")
     .replace(/<\/a\s*>/gi, "</span>")
+    .replace(/\s(?:src|srcset|poster)\s*=\s*(?!["'])[^\s>]+/gi, "")
     .replace(/\s(?:on[a-z]+|style|srcdoc|formaction|xlink:href|href|srcset|poster)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/\s(src)\s*=\s*(["'])(.*?)\2/gi, (_match, _attribute, _quote, value: string) => {
       try {
@@ -138,7 +144,8 @@ function sanitizeArticleHtml(html: string, baseUrl: string): string {
       } catch {
         return "";
       }
-    });
+    })
+    .replace(/<\/?(?!p\b|div\b|span\b|article\b|section\b|h[1-6]\b|ul\b|ol\b|li\b|blockquote\b|table\b|thead\b|tbody\b|tr\b|th\b|td\b|br\b|hr\b|strong\b|b\b|em\b|i\b|small\b|figure\b|figcaption\b|img\b|dl\b|dt\b|dd\b)[a-z][^>]*>/gi, "");
 }
 
 function pick(html: string, re: RegExp): string | null {
@@ -223,7 +230,7 @@ function extractArticle(html: string, url: string) {
 
   return {
     title: cleanTitle,
-    content: cleanedContent || strip(html).slice(0, 5000),
+    content: cleanedContent || escapeHtml(strip(html).slice(0, 5000)),
     excerpt: description ? strip(description).slice(0, 300) : strip(cleanedContent || html).slice(0, 300),
     featured_image: ogImage,
   };

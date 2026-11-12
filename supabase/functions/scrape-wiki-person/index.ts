@@ -32,7 +32,7 @@ async function requireScraperUser(req: Request, supabaseUrl: string, anonKey: st
   const rolesRes = await fetch(`${supabaseUrl}/rest/v1/user_roles?user_id=eq.${encodeURIComponent(user.id)}&role=in.(admin,moderator,editor)&select=role&limit=1`, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
   if (!rolesRes.ok) throw new Error("account permission could not be checked");
   const roles = await rolesRes.json();
-  if (!roles?.length) throw new Error("scraper access is not allowed for this account");
+  if (!roles?.length) throw new Error("scraper access not allowed for this account");
   return { id: user.id, role: roles[0].role as string };
 }
 
@@ -76,6 +76,11 @@ Deno.serve(async (req) => {
     if (Array.isArray(body.urls)) urls = body.urls;
     else if (typeof body.urls === "string") urls = body.urls.split(/[👉\n,]+/);
     urls = urls.map((s: string) => s.trim()).filter((s) => s.startsWith("http"));
+    if (!urls.length || urls.length > 10) {
+      return new Response(JSON.stringify({ error: "Provide between 1 and 10 Wikipedia URLs" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const ownerUserId = scraperUser.id;
 
@@ -180,8 +185,10 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String((e as Error).message || e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const message = String((e as Error).message || e);
+    return new Response(JSON.stringify({ error: message }), {
+      status: message.includes("authenticated") || message.includes("session") ? 401 : message.includes("not allowed") ? 403 : 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
